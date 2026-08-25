@@ -3,6 +3,7 @@ import json
 from datetime import datetime, timezone
  
 import cv2
+import requests
 from ultralytics import YOLO
  
 MODEL_PATH = "yolov8n.pt"
@@ -17,6 +18,10 @@ SECONDS_PER_PERSON = 45                  # rough wait-time estimate per person
 CAMERA_ID = "queue_camera_1"
 QUEUE_ID = "q1"
 QUEUE_NAME = "Checkout Queue 1"
+ 
+# Confirmed live from backend/app/api/v1/edge.py
+BACKEND_URL = "http://localhost:8000"
+INGEST_ENDPOINT = f"{BACKEND_URL}/edge/queue"
  
  
 def in_zone(cx, cy, frame_w, frame_h, zone):
@@ -81,10 +86,15 @@ def run(source, show=False, print_every_n_frames=15):
             # Emit JSON every N frames (avoid flooding output every single frame)
             if frame_idx % print_every_n_frames == 0:
                 payload = build_output(CAMERA_ID, QUEUE_ID, QUEUE_NAME, shopper_count)
-                print(json.dumps(payload))
-                # TODO: replace print() with a POST request to the backend's
-                # queue-ingest endpoint, e.g.:
-                #   requests.post(f"{BACKEND_URL}/api/v1/queue/ingest", json=payload)
+                try:
+                    resp = requests.post(INGEST_ENDPOINT, json=payload, timeout=2)
+                    if resp.status_code == 201:
+                        print(f"[SENT] {json.dumps(payload)}")
+                    else:
+                        print(f"[WARN] Backend returned {resp.status_code}: {resp.text}")
+                except requests.exceptions.RequestException as e:
+                    # Backend down/unreachable - log and keep the detection loop alive
+                    print(f"[ERROR] Could not reach backend: {e}")
  
             if show:
                 zx1, zy1 = int(QUEUE_ZONE[0] * frame_w), int(QUEUE_ZONE[1] * frame_h)
