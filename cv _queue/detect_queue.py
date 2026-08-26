@@ -19,9 +19,9 @@ CAMERA_ID = "queue_camera_1"
 QUEUE_ID = "q1"
 QUEUE_NAME = "Checkout Queue 1"
  
-# Confirmed live from backend/app/api/v1/edge.py
+# Confirmed live from backend/app/api/v1/edge.py + app/config.py's API_V1_STR
 BACKEND_URL = "http://localhost:8000"
-INGEST_ENDPOINT = f"{BACKEND_URL}/edge/queue"
+INGEST_ENDPOINT = f"{BACKEND_URL}/api/v1/edge/queue"
  
  
 def in_zone(cx, cy, frame_w, frame_h, zone):
