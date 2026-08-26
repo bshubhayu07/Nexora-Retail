@@ -19,7 +19,7 @@ FILL_PERCENTAGE_MAP = {
 }
  
 BACKEND_URL = "http://localhost:8000"
-INGEST_ENDPOINT = f"{BACKEND_URL}/edge/shelf"
+INGEST_ENDPOINT = f"{BACKEND_URL}/api/v1/edge/shelf"
  
 TRANSFORM = transforms.Compose([
     transforms.Resize((224, 224)),
