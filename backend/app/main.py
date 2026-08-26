@@ -27,13 +27,13 @@ async def lifespan(app: FastAPI):
     logger.info("Initializing SQLite database & creating tables...")
     await init_db()
     logger.info("Starting Edge Camera Background Simulator...")
-    edge_simulator.start()
+    #edge_simulator.start()
     
     yield
     
     # Shutdown tasks
     logger.info("Stopping Edge Camera Background Simulator...")
-    edge_simulator.stop()
+    #edge_simulator.stop()
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
