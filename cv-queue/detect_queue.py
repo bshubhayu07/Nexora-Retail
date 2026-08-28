@@ -10,7 +10,7 @@ MODEL_PATH = "yolov8n.pt"
 PERSON_CLASS_ID = 0        # COCO class 0 = person
 CONF_THRESHOLD = 0.4
  
-QUEUE_ZONE = (0.30, 0.30, 0.95, 0.95)   # (x1, y1, x2, y2) as fraction of frame size
+QUEUE_ZONE = (0.0, 0.0, 1.0, 1.0)   # (x1, y1, x2, y2) as fraction of frame size
 SECONDS_PER_PERSON = 45                  # rough wait-time estimate per person
  
 # Identity fields required by the backend's QueueMetricPayload schema.
