@@ -2,6 +2,7 @@ import React from 'react';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
 import { Users, Package, AlertTriangle, Clock, ShoppingCart, TrendingDown, CheckCircle } from 'lucide-react';
 import { dispatchRestock } from '../mock/mockData';
+import EdgeVisionStream from './EdgeVisionStream';
 
 const AnalyticsPanels = ({ data }) => {
   if (!data) return null;
@@ -55,6 +56,9 @@ const AnalyticsPanels = ({ data }) => {
             ))}
           </div>
         </div>
+
+        {/* Simulated Edge Vision Stream */}
+        <EdgeVisionStream />
       </div>
 
       <div className="flex flex-col gap-6">
