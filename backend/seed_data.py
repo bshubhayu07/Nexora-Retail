@@ -1,5 +1,5 @@
 import asyncio
-from datetime import datetime, timedelta
+from datetime import datetime, timezone, timedelta
 from app.database import AsyncSessionLocal, init_db
 from app.models.domain import Camera, ShopperTelemetry, QueueMetric, ShelfMetric, AlertLog, EdgeHardwareTelemetry
 import random
@@ -20,7 +20,7 @@ async def seed_database():
             await db.merge(c)
             
         print("Seeding Shopper Telemetry & Spatial Heatmaps...")
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         for i in range(30):
             t_time = now - timedelta(minutes=i * 2)
             coords = [

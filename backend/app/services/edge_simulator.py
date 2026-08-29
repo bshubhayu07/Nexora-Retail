@@ -1,6 +1,6 @@
 import asyncio
 import random
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import AsyncSessionLocal
 from app.models.domain import ShopperTelemetry, QueueMetric, ShelfMetric, EdgeHardwareTelemetry, Camera
@@ -142,7 +142,7 @@ class EdgeSimulator:
                 "queue_2_count": q2_count,
                 "aisle_3_stock_pct": shelf_payload.fill_percentage,
                 "npu_load_pct": hw_payload.npu_load_pct,
-                "timestamp": datetime.utcnow().isoformat()
+                "timestamp": datetime.now(timezone.utc).isoformat()
             }
         })
 

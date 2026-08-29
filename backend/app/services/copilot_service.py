@@ -4,7 +4,7 @@ from sqlalchemy import select, func
 from app.models.domain import ShopperTelemetry, QueueMetric, ShelfMetric, AlertLog, EdgeHardwareTelemetry, CopilotChat
 from app.schemas.schemas import CopilotChatRequest, CopilotChatResponse
 from app.config import settings
-from datetime import datetime, timedelta
+from datetime import datetime, timezone, timedelta
 import logging
 import json
 
@@ -14,7 +14,7 @@ class CopilotService:
     @staticmethod
     async def get_in_context_data(db: AsyncSession) -> dict:
         """Fetch real-time DB context for RAG prompt augmentation."""
-        since_today = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+        since_today = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
         
         # 1. Total Footfall Today & Active Shoppers
         footfall_stmt = select(func.sum(ShopperTelemetry.shopper_count)).where(ShopperTelemetry.timestamp >= since_today)
@@ -93,7 +93,7 @@ Provide a concise, professional, actionable executive response. Suggest specific
         # 1. Attempt Local Ollama API Call
         if request.use_llama:
             try:
-                async with httpx.AsyncClient(timeout=10.0) as client:
+                async with httpx.AsyncClient(timeout=5.0) as client:
                     resp = await client.post(
                         f"{settings.OLLAMA_BASE_URL}/api/generate",
                         json={
@@ -130,7 +130,7 @@ Provide a concise, professional, actionable executive response. Suggest specific
             used_llm_model=used_model_name,
             is_live_llama=is_live,
             sources_used=["ShopperTelemetry", "QueueMetric", "ShelfMetric", "QualcommEdgeHardware"],
-            timestamp=datetime.utcnow()
+            timestamp=datetime.now(timezone.utc)
         )
 
     @staticmethod

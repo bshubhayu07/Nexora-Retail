@@ -64,23 +64,13 @@ app.include_router(copilot_router, prefix=settings.API_V1_STR)
 app.include_router(simulator_router, prefix=settings.API_V1_STR)
 app.include_router(ws_router)
 
-from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
-import os
-
 @app.get("/")
 async def root():
     return {
         "status": "online",
         "system": settings.PROJECT_NAME,
         "version": settings.VERSION,
-        "dashboard": "/dashboard",
         "docs": "/docs",
+        "redoc": "/redoc",
         "local_llama_status": "Enabled (Ollama / Fallback)"
     }
-
-@app.get("/dashboard")
-async def get_dashboard():
-    dashboard_path = os.path.join(os.path.dirname(__file__), "static", "dashboard.html")
-    return FileResponse(dashboard_path)
-

@@ -4,7 +4,7 @@ from sqlalchemy import select
 from app.database import get_db
 from app.schemas.schemas import AlertLogResponse
 from app.models.domain import AlertLog
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List, Optional
 
 router = APIRouter(prefix="/alerts", tags=["System Alerts"])
@@ -38,7 +38,7 @@ async def acknowledge_alert(alert_id: int, db: AsyncSession = Depends(get_db)):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Alert ID not found.")
         
     alert.is_acknowledged = True
-    alert.resolved_at = datetime.utcnow()
+    alert.resolved_at = datetime.now(timezone.utc)
     await db.commit()
     
     return {"status": "success", "message": f"Alert #{alert_id} acknowledged."}

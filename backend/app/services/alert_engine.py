@@ -4,7 +4,7 @@ from app.models.domain import AlertLog, QueueMetric, ShelfMetric, EdgeHardwareTe
 from app.schemas.schemas import QueueMetricPayload, ShelfMetricPayload, EdgeHardwareTelemetryPayload
 from app.services.websocket_manager import ws_manager
 from app.config import settings
-from datetime import datetime
+from datetime import datetime, timezone
 import logging
 
 logger = logging.getLogger("alert_engine")
@@ -59,6 +59,10 @@ class AlertEngine:
                     }
                 })
                 logger.info(f"Triggered Alert: {title}")
+            elif existing.severity != severity:
+                existing.severity = severity
+                existing.message = msg
+                await db.commit()
 
     @staticmethod
     async def evaluate_shelf_telemetry(db: AsyncSession, payload: ShelfMetricPayload):
@@ -105,6 +109,10 @@ class AlertEngine:
                         "timestamp": new_alert.timestamp.isoformat()
                     }
                 })
+            elif existing.severity != severity:
+                existing.severity = severity
+                existing.message = msg
+                await db.commit()
 
     @staticmethod
     async def evaluate_hardware_telemetry(db: AsyncSession, payload: EdgeHardwareTelemetryPayload):

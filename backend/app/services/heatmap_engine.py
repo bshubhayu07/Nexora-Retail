@@ -2,8 +2,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app.models.domain import ShopperTelemetry
 from app.schemas.schemas import HeatmapGridResponse, HeatmapPoint
-from datetime import datetime, timedelta
-import math
+from datetime import datetime, timezone, timedelta
 
 class HeatmapEngine:
     @staticmethod
@@ -12,7 +11,7 @@ class HeatmapEngine:
         Retrieves spatial shopper coordinates from the last N minutes
         and constructs a normalized 2D density grid.
         """
-        since_time = datetime.utcnow() - timedelta(minutes=time_window_minutes)
+        since_time = datetime.now(timezone.utc) - timedelta(minutes=time_window_minutes)
         
         stmt = select(ShopperTelemetry).where(ShopperTelemetry.timestamp >= since_time)
         result = await db.execute(stmt)
