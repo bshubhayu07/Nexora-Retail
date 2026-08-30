@@ -8,7 +8,7 @@
 
 ---
 
-## 🌟 Executive Summary
+##  Executive Summary
 
 **Nexora Retail Intelligence Engine (NRIE)** is an edge-first, 100% local AI platform built for physical retail environments (supermarkets, department stores, Kirana chains). Designed specifically for **Qualcomm Snapdragon SNPE / Edge AI hardware**, NRIE runs completely offline on the shopkeeper's local store computer:
 
@@ -19,7 +19,7 @@
 
 ---
 
-## 📁 Repository Structure
+##  Repository Structure
 
 ```
 Nexora-Retail/
@@ -41,7 +41,7 @@ Nexora-Retail/
 
 ---
 
-## 🚀 How to Run Locally on the Shopkeeper's Computer
+##  How to Run Locally on the Shopkeeper's Computer
 
 ### 1. Install Backend Dependencies
 ```powershell
@@ -60,6 +60,6 @@ python run.py
 ```
 
 ### 4. Access Local Interfaces
-- 🖥️ **Local Store Dashboard**: [http://localhost:8000/dashboard](http://localhost:8000/dashboard)
-- 📜 **Local Swagger OpenAPI Docs**: [http://localhost:8000/docs](http://localhost:8000/docs)
-- ⚡ **Local WebSocket Connection**: `ws://localhost:8000/ws/api/v1/dashboard/live`
+-  **Local Store Dashboard**: [http://localhost:8000/dashboard](http://localhost:8000/dashboard)
+-  **Local Swagger OpenAPI Docs**: [http://localhost:8000/docs](http://localhost:8000/docs)
+-  **Local WebSocket Connection**: `ws://localhost:8000/ws/api/v1/dashboard/live`
