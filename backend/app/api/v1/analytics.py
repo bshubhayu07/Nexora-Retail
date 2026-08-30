@@ -5,14 +5,14 @@ from app.database import get_db
 from app.schemas.schemas import OverviewKPI, HeatmapGridResponse
 from app.models.domain import ShopperTelemetry, QueueMetric, ShelfMetric, AlertLog, EdgeHardwareTelemetry
 from app.services.heatmap_engine import HeatmapEngine
-from datetime import datetime, timedelta
+from datetime import datetime, timezone, timedelta
 
 router = APIRouter(prefix="/analytics", tags=["Store Analytics"])
 
 @router.get("/overview", response_model=OverviewKPI)
 async def get_analytics_overview(db: AsyncSession = Depends(get_db)):
     """Fetch high-level Store Overview KPIs for executive dashboard."""
-    since_today = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+    since_today = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
     
     # 1. Total Footfall Today
     footfall_stmt = select(func.sum(ShopperTelemetry.shopper_count)).where(ShopperTelemetry.timestamp >= since_today)

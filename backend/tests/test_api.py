@@ -16,13 +16,6 @@ async def test_root_endpoint():
     assert response.json()["status"] == "online"
 
 @pytest.mark.asyncio
-async def test_dashboard_endpoint():
-    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
-        response = await ac.get("/dashboard")
-    assert response.status_code == 200
-    assert "Qualcomm Edge AI Retail Intelligence" in response.text
-
-@pytest.mark.asyncio
 async def test_ingest_shopper_telemetry():
     payload = {
         "camera_id": "cam-01-entrance",

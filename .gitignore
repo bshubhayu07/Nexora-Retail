@@ -1,3 +1,6 @@
+# Local Demo Frontend (EXCLUDED FROM GITHUB)
+frontend/
+
 # Python
 __pycache__/
 *.py[cod]
