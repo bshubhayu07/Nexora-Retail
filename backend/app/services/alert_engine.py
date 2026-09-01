@@ -63,6 +63,19 @@ class AlertEngine:
                 existing.severity = severity
                 existing.message = msg
                 await db.commit()
+        else:
+            # Auto-resolve queue overflow if count is normal
+            stmt = select(AlertLog).where(
+                AlertLog.source_id == payload.queue_id,
+                AlertLog.is_acknowledged == False,
+                AlertLog.alert_type == "QUEUE_OVERFLOW"
+            )
+            result = await db.execute(stmt)
+            existing = result.scalars().first()
+            if existing:
+                existing.is_acknowledged = True
+                existing.resolved_at = datetime.now(timezone.utc)
+                await db.commit()
 
     @staticmethod
     async def evaluate_shelf_telemetry(db: AsyncSession, payload: ShelfMetricPayload):
@@ -70,13 +83,13 @@ class AlertEngine:
         Evaluate shelf inventory thresholds:
         - If fill_percentage < settings.SHELF_RESTOCK_THRESHOLD_PCT (default 20%): Trigger SHELF_EMPTY alert.
         """
+        source_id = f"shelf-{payload.aisle_name.replace(' ', '-').lower()}"
+
         if payload.fill_percentage <= settings.SHELF_RESTOCK_THRESHOLD_PCT:
             severity = "CRITICAL" if payload.fill_percentage <= 5.0 else "WARNING"
             title = f"Low Stock Alert: {payload.aisle_name} ({payload.category})"
             msg = (f"Shelf in {payload.aisle_name} ({payload.category}) fill level has dropped to {payload.fill_percentage:.1f}%. "
                    f"Estimated remaining items: {payload.product_count}. Immediate restock advised.")
-            
-            source_id = f"shelf-{payload.aisle_name.replace(' ', '-').lower()}"
             
             stmt = select(AlertLog).where(
                 AlertLog.source_id == source_id,
@@ -112,6 +125,19 @@ class AlertEngine:
             elif existing.severity != severity:
                 existing.severity = severity
                 existing.message = msg
+                await db.commit()
+        else:
+            # Auto-resolve shelf alert if restocked
+            stmt = select(AlertLog).where(
+                AlertLog.source_id == source_id,
+                AlertLog.is_acknowledged == False,
+                AlertLog.alert_type == "SHELF_EMPTY"
+            )
+            result = await db.execute(stmt)
+            existing = result.scalars().first()
+            if existing:
+                existing.is_acknowledged = True
+                existing.resolved_at = datetime.now(timezone.utc)
                 await db.commit()
 
     @staticmethod

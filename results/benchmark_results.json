@@ -1,0 +1,58 @@
+[
+  {
+    "model_tag": "Shopper Detector (FP32)",
+    "model_name": "yolov8n.onnx",
+    "model_path": "models/shopper/yolov8n.onnx",
+    "model_size_mb": 12.26,
+    "execution_provider": "CPUExecutionProvider",
+    "input_resolution": "640x640",
+    "frames_processed": 25,
+    "average_latency_ms": 37.36,
+    "p50_latency_ms": 35.46,
+    "p95_latency_ms": 45.32,
+    "throughput_fps": 26.6,
+    "memory_usage_mb": 124.1
+  },
+  {
+    "model_tag": "Shopper Detector (INT8 Dynamic)",
+    "model_name": "yolov8n_int8.onnx",
+    "model_path": "models/shopper/yolov8n_int8.onnx",
+    "model_size_mb": 3.34,
+    "execution_provider": "CPUExecutionProvider",
+    "input_resolution": "640x640",
+    "frames_processed": 25,
+    "average_latency_ms": 67.64,
+    "p50_latency_ms": 64.13,
+    "p95_latency_ms": 87.31,
+    "throughput_fps": 14.7,
+    "memory_usage_mb": 118.4
+  },
+  {
+    "model_tag": "Shelf Classifier (FP32)",
+    "model_name": "shelf_detector.onnx",
+    "model_path": "models/shelf/shelf_detector.onnx",
+    "model_size_mb": 8.42,
+    "execution_provider": "CPUExecutionProvider",
+    "input_resolution": "224x224",
+    "frames_processed": 25,
+    "average_latency_ms": 2.54,
+    "p50_latency_ms": 2.51,
+    "p95_latency_ms": 2.67,
+    "throughput_fps": 388.3,
+    "memory_usage_mb": 79.1
+  },
+  {
+    "model_tag": "Shelf Classifier (INT8 Dynamic)",
+    "model_name": "shelf_detector_int8.onnx",
+    "model_path": "models/shelf/shelf_detector_int8.onnx",
+    "model_size_mb": 2.25,
+    "execution_provider": "CPUExecutionProvider",
+    "input_resolution": "224x224",
+    "frames_processed": 25,
+    "average_latency_ms": 24.75,
+    "p50_latency_ms": 24.14,
+    "p95_latency_ms": 27.54,
+    "throughput_fps": 40.5,
+    "memory_usage_mb": 85.2
+  }
+]

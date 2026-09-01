@@ -1,0 +1,33 @@
+{
+  "store_name": "Nexora Retail Store #101",
+  "grid_dimensions": {
+    "width_meters": 30.0,
+    "height_meters": 20.0
+  },
+  "zones": [
+    {
+      "zone_id": "entrance_foyer",
+      "name": "Main Entrance Foyer",
+      "type": "FOOTFALL_ENTRY",
+      "polygon": [[0.0, 0.0], [0.3, 0.0], [0.3, 0.4], [0.0, 0.4]]
+    },
+    {
+      "zone_id": "checkout_area",
+      "name": "Cashier Checkout Zone",
+      "type": "QUEUE_MONITOR",
+      "polygon": [[0.6, 0.6], [1.0, 0.6], [1.0, 1.0], [0.6, 1.0]]
+    },
+    {
+      "zone_id": "aisle_3_dairy",
+      "name": "Aisle 3 (Dairy & Milk)",
+      "type": "SHELF_INVENTORY",
+      "polygon": [[0.35, 0.2], [0.65, 0.2], [0.65, 0.6], [0.35, 0.6]]
+    },
+    {
+      "zone_id": "promo_display",
+      "name": "Promotional Endcap Display",
+      "type": "DWELL_ANALYTICS",
+      "polygon": [[0.7, 0.1], [0.95, 0.1], [0.95, 0.4], [0.7, 0.4]]
+    }
+  ]
+}

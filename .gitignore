@@ -1,5 +1,9 @@
-# Local Demo Frontend (EXCLUDED FROM GITHUB)
-frontend/
+# Node & Frontend
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+node_modules/
+dist/
 
 # Python
 __pycache__/
@@ -29,9 +33,11 @@ venv/
 env/
 ENV/
 
-# Database
+# Database & Temporary SQLite Logs
 *.db
 *.sqlite3
+*.db-shm
+*.db-wal
 
 # Pytest & IDE
 .pytest_cache/
@@ -41,6 +47,8 @@ htmlcov/
 .vscode/
 *.swp
 
-# OS
+# OS & Office lock files
 Thumbs.db
 [Dd]esktop.ini
+~$*
+.DS_Store

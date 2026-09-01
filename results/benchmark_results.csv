@@ -1,0 +1,5 @@
+model_tag,model_name,model_path,model_size_mb,execution_provider,input_resolution,frames_processed,average_latency_ms,p50_latency_ms,p95_latency_ms,throughput_fps,memory_usage_mb
+Shopper Detector (FP32),yolov8n.onnx,models/shopper/yolov8n.onnx,12.26,CPUExecutionProvider,640x640,25,37.36,35.46,45.32,26.6,124.1
+Shopper Detector (INT8 Dynamic),yolov8n_int8.onnx,models/shopper/yolov8n_int8.onnx,3.34,CPUExecutionProvider,640x640,25,67.64,64.13,87.31,14.7,118.4
+Shelf Classifier (FP32),shelf_detector.onnx,models/shelf/shelf_detector.onnx,8.42,CPUExecutionProvider,224x224,25,2.54,2.51,2.67,388.3,79.1
+Shelf Classifier (INT8 Dynamic),shelf_detector_int8.onnx,models/shelf/shelf_detector_int8.onnx,2.25,CPUExecutionProvider,224x224,25,24.75,24.14,27.54,40.5,85.2
