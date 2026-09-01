@@ -11,16 +11,16 @@
 
 ---
 
-## 🌟 Core Architectural Highlights
+##  Core Architectural Highlights
 
-- 👁️ **On-Device Vision (OpenCV + YOLOv8)**: Multi-lane queue detection, boundary polygon shelf monitoring, and bounding box generation at ~30 FPS directly on edge silicon.
-- ⚡ **Predictive Staffing & Alert Trigger Engine**: Dynamic counter allocation suggestions generated proactively *before* queue overflow occurs, preventing customer walkaways.
-- 💬 **Manager Copilot (Ollama LLM)**: A responsive natural-language interface that analyzes store telemetry, translates raw trigger logs into actionable insights, and coordinates dispatch directly with floor staff.
-- 🔒 **Zero-Cloud / Edge-Native**: Delivers ultra-low latency inference (<150ms), operates entirely offline, and maintains strict data privacy compliance by keeping video feeds out of the cloud.
+-  **On-Device Vision (OpenCV + YOLOv8)**: Multi-lane queue detection, boundary polygon shelf monitoring, and bounding box generation at ~30 FPS directly on edge silicon.
+-  **Predictive Staffing & Alert Trigger Engine**: Dynamic counter allocation suggestions generated proactively *before* queue overflow occurs, preventing customer walkaways.
+-  **Manager Copilot (Ollama LLM)**: A responsive natural-language interface that analyzes store telemetry, translates raw trigger logs into actionable insights, and coordinates dispatch directly with floor staff.
+-  **Zero-Cloud / Edge-Native**: Delivers ultra-low latency inference (<150ms), operates entirely offline, and maintains strict data privacy compliance by keeping video feeds out of the cloud.
 
 ---
 
-## 🖥️ Frontend Dashboard Breakdown (Multi-Tab UI)
+##  Frontend Dashboard Breakdown (Multi-Tab UI)
 
 The React dashboard is heavily optimized for multi-tasking retail managers, segregated into focused operational tabs:
 
@@ -43,7 +43,7 @@ The React dashboard is heavily optimized for multi-tasking retail managers, segr
 
 ---
 
-## 🛠️ Tech Stack
+##  Tech Stack
 
 | Domain | Technology / Tool |
 | :--- | :--- |
@@ -55,7 +55,7 @@ The React dashboard is heavily optimized for multi-tasking retail managers, segr
 
 ---
 
-## 🚀 Getting Started & Local Setup Guide
+##  Getting Started & Local Setup Guide
 
 ### Prerequisites
 - **Node.js** 18+
@@ -88,7 +88,7 @@ ollama run llama3.2:3b
 
 ---
 
-## 📂 Repository Structure
+##  Repository Structure
 
 ```text
 Nexora-Retail/
@@ -114,7 +114,7 @@ Nexora-Retail/
 
 ---
 
-## 🏆 Team & Hackathon Track
+##  Team & Hackathon Track
 
 **Team:** Nexora
 **Track:** On-Device AI / Edge Computing Operations
