@@ -32,7 +32,6 @@ def load_model(model_path=MODEL_PATH):
     model = models.mobilenet_v2(weights=None)
     model.classifier[1] = nn.Linear(model.last_channel, len(CLASSES))
     model.load_state_dict(torch.load(model_path, map_location="cpu"))
-    model.eval()
     return model
  
  
