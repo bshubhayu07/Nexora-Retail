@@ -21,7 +21,7 @@ async def get_queue_statuses(db: AsyncSession = Depends(get_db)):
         QueueMetric.shopper_count,
         QueueMetric.estimated_wait_sec,
         QueueMetric.cashier_status
-    ).order_by(QueueMetric.timestamp.desc()).limit(20)
+    ).order_by(QueueMetric.timestamp.desc())
     
     res = await db.execute(subq)
     rows = res.all()
