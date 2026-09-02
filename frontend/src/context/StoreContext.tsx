@@ -37,6 +37,9 @@ interface StoreContextType extends LiveStoreState {
     q1Count?: number;
     q2Count?: number;
     q3Count?: number;
+    counter1Open?: boolean;
+    counter2Open?: boolean;
+    counter3Open?: boolean;
     aisle1Stock?: number;
     aisle2Stock?: number;
     aisle3Stock?: number;
@@ -85,21 +88,27 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     ): Situation[] => {
       const results: Situation[] = [];
 
-      const overloadedQueue = queueList.find(
-        (q) =>
-          q.queue_id !== 'queue-counter-3' &&
-          (q.cashier_status === 'OVERLOADED' ||
-            q.shopper_count >= 5 ||
-            q.estimated_wait_sec > 480)
+      const openCounters = queueList.filter(
+        (q) => q.cashier_status !== 'CLOSED'
       );
 
-      const closedCounter = queueList.find(
-        (q) =>
-          q.queue_id === 'queue-counter-3' &&
-          q.cashier_status === 'CLOSED'
+      const closedCounters = queueList.filter(
+        (q) => q.cashier_status === 'CLOSED'
       );
 
-      if (overloadedQueue && closedCounter) {
+      const overloadedQueue = openCounters.find(
+        (q) =>
+          q.cashier_status === 'OVERLOADED' ||
+          q.shopper_count >= 6 ||
+          q.estimated_wait_sec > 480
+      );
+
+      if (overloadedQueue && closedCounters.length > 0) {
+        const counterToOpen =
+          closedCounters.find(
+            (q) => q.queue_id !== overloadedQueue.queue_id
+          ) || closedCounters[0];
+
         results.push({
           id: `queue-${overloadedQueue.queue_id}`,
           priority: 'CRITICAL',
@@ -110,21 +119,43 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             overloadedQueue.estimated_wait_sec / 60
           )} minutes.`,
           reason:
-            `Queue depth is growing faster than single-counter processing capacity. Rate of arrival exceeds checkout throughput.`,
+            `Queue depth is growing faster than available checkout capacity. Current open-counter capacity is insufficient for the detected arrival rate.`,
           impact:
-            `Shoppers are experiencing high checkout latency (>8 min). High risk of immediate basket abandonment and shopper churn.`,
+            `Shoppers are experiencing high checkout latency. High risk of immediate basket abandonment and shopper churn.`,
           recommendation:
-            `Open ${closedCounter.queue_name} to redistribute queue load and reduce average wait below 2 minutes.`,
+            `Open ${counterToOpen.queue_name} to redistribute queue load and reduce average wait time.`,
           action: {
-            id: `action-open-${closedCounter.queue_id}`,
+            id: `action-open-${counterToOpen.queue_id}`,
             type: 'OPEN_COUNTER',
-            label: `OPEN ${closedCounter.queue_name.toUpperCase()}`,
-            entityId: closedCounter.queue_id,
-            endpoint: `/queue/${closedCounter.queue_id}/toggle`,
+            label: `OPEN ${counterToOpen.queue_name.toUpperCase()}`,
+            entityId: counterToOpen.queue_id,
+            endpoint: `/queue/${counterToOpen.queue_id}/toggle`,
             method: 'POST',
             payload: { action: 'OPEN' },
             status: 'AVAILABLE',
           },
+          timestamp: new Date().toLocaleTimeString([], {
+            hour: '2-digit',
+            minute: '2-digit',
+          }),
+          source: overloadedQueue.camera_id || 'Checkout Zone Vision',
+        });
+      } else if (overloadedQueue && closedCounters.length === 0) {
+        results.push({
+          id: `queue-${overloadedQueue.queue_id}`,
+          priority: 'CRITICAL',
+          type: 'QUEUE_CONGESTION',
+          title: `Checkout Congestion Detected`,
+          entity: overloadedQueue.queue_name,
+          summary: `${overloadedQueue.shopper_count} shoppers waiting at ${overloadedQueue.queue_name}. Estimated wait time is ~${Math.round(
+            overloadedQueue.estimated_wait_sec / 60
+          )} minutes.`,
+          reason:
+            `All available cashier counters are currently open and checkout demand remains above processing capacity.`,
+          impact:
+            `Shoppers are experiencing high checkout latency with elevated risk of basket abandonment.`,
+          recommendation:
+            `All cashier counters are already open. Monitor queue redistribution and checkout throughput.`,
           timestamp: new Date().toLocaleTimeString([], {
             hour: '2-digit',
             minute: '2-digit',
@@ -284,8 +315,10 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
       const q =
         queueData.status === 'fulfilled' ? queueData.value : [];
+
       const s =
         shelfData.status === 'fulfilled' ? shelfData.value : [];
+
       const a =
         alertData.status === 'fulfilled' ? alertData.value : [];
 
@@ -322,6 +355,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       }
 
       const derived = deriveSituations(q, s, a);
+
       setSituations(derived);
       setLastUpdated(new Date());
     } catch (err: any) {
@@ -341,6 +375,9 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       q1Count?: number;
       q2Count?: number;
       q3Count?: number;
+      counter1Open?: boolean;
+      counter2Open?: boolean;
+      counter3Open?: boolean;
       aisle1Stock?: number;
       aisle2Stock?: number;
       aisle3Stock?: number;
@@ -365,6 +402,20 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             q.queue_id === 'queue-counter-1' &&
             data.q1Count !== undefined
           ) {
+            const isOpen =
+              data.counter1Open !== undefined
+                ? data.counter1Open
+                : q.cashier_status !== 'CLOSED';
+
+            if (!isOpen) {
+              return {
+                ...q,
+                shopper_count: 0,
+                estimated_wait_sec: 0,
+                cashier_status: 'CLOSED',
+              };
+            }
+
             const status =
               data.q1Count >= 6
                 ? 'OVERLOADED'
@@ -384,6 +435,20 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             q.queue_id === 'queue-counter-2' &&
             data.q2Count !== undefined
           ) {
+            const isOpen =
+              data.counter2Open !== undefined
+                ? data.counter2Open
+                : q.cashier_status !== 'CLOSED';
+
+            if (!isOpen) {
+              return {
+                ...q,
+                shopper_count: 0,
+                estimated_wait_sec: 0,
+                cashier_status: 'CLOSED',
+              };
+            }
+
             const status =
               data.q2Count >= 6
                 ? 'OVERLOADED'
@@ -403,8 +468,26 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             q.queue_id === 'queue-counter-3' &&
             data.q3Count !== undefined
           ) {
+            const isOpen =
+              data.counter3Open !== undefined
+                ? data.counter3Open
+                : q.cashier_status !== 'CLOSED';
+
+            if (!isOpen) {
+              return {
+                ...q,
+                shopper_count: 0,
+                estimated_wait_sec: 0,
+                cashier_status: 'CLOSED',
+              };
+            }
+
             const status =
-              data.q3Count > 0 ? 'OPEN' : 'CLOSED';
+              data.q3Count >= 6
+                ? 'OVERLOADED'
+                : data.q3Count >= 4
+                ? 'BUSY'
+                : 'OPEN';
 
             return {
               ...q,
@@ -512,6 +595,9 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           q1Count: data.queue_1_count,
           q2Count: data.queue_2_count,
           q3Count: data.queue_3_count,
+          counter1Open: data.counter_1_open,
+          counter2Open: data.counter_2_open,
+          counter3Open: data.counter_3_open,
           aisle3Stock: data.aisle_3_stock_pct,
           npuLoad: data.npu_load_pct,
         });
@@ -597,7 +683,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       } else if (
         action.type === 'DISPATCH_RESTOCK'
       ) {
-        const res = await triggerRestock(
+        await triggerRestock(
           action.entityId
         );
 
@@ -617,7 +703,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       } else if (
         action.type === 'ACKNOWLEDGE_ALERT'
       ) {
-        const res = await acknowledgeAlert(
+        await acknowledgeAlert(
           parseInt(action.entityId, 10)
         );
 
