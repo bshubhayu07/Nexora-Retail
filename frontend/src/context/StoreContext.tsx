@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import {
   LiveStoreState,
   Situation,
@@ -41,6 +41,7 @@ interface StoreContextType extends LiveStoreState {
     aisle2Stock?: number;
     aisle3Stock?: number;
     aisle4Stock?: number;
+    npuLoad?: number;
   }) => void;
   executeAction: (action: OperationalAction) => Promise<boolean>;
   activeAction: OperationalAction | null;
@@ -51,8 +52,13 @@ const StoreContext = createContext<StoreContextType | undefined>(undefined);
 
 export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { showToast } = useToast();
+
   const [currentRoute, setCurrentRoute] = useState<AppRoute>('command-center');
-  const [selectedEntity, setSelectedEntity] = useState<{ type: 'queue' | 'aisle' | 'alert' | 'event'; id: string } | null>(null);
+
+  const [selectedEntity, setSelectedEntity] = useState<{
+    type: 'queue' | 'aisle' | 'alert' | 'event';
+    id: string;
+  } | null>(null);
 
   const [overview, setOverview] = useState<OverviewKPIDTO | null>(null);
   const [queues, setQueues] = useState<QueueStatusResponseDTO[]>([]);
@@ -71,7 +77,6 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [activeAction, setActiveAction] = useState<OperationalAction | null>(null);
   const [verificationMessage, setVerificationMessage] = useState<string | null>(null);
 
-  // Situation Normalization Engine
   const deriveSituations = useCallback(
     (
       queueList: QueueStatusResponseDTO[],
@@ -80,13 +85,17 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     ): Situation[] => {
       const results: Situation[] = [];
 
-      // 1. Evaluate Queues
       const overloadedQueue = queueList.find(
-        (q) => q.cashier_status === 'OVERLOADED' || q.shopper_count >= 5 || q.estimated_wait_sec > 480
+        (q) =>
+          q.cashier_status === 'OVERLOADED' ||
+          q.shopper_count >= 5 ||
+          q.estimated_wait_sec > 480
       );
+
       if (overloadedQueue) {
-        // Look for next counter to open (e.g. queue-counter-3 or closed counter)
-        const closedCounter = queueList.find((q) => q.cashier_status === 'CLOSED') || {
+        const closedCounter = queueList.find(
+          (q) => q.cashier_status === 'CLOSED'
+        ) || {
           queue_id: 'queue-counter-3',
           queue_name: 'Cashier Counter 3',
         };
@@ -100,9 +109,12 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           summary: `${overloadedQueue.shopper_count} shoppers waiting at ${overloadedQueue.queue_name}. Estimated wait time is ~${Math.round(
             overloadedQueue.estimated_wait_sec / 60
           )} minutes.`,
-          reason: `Queue depth is growing faster than single-counter processing capacity. Rate of arrival exceeds checkout throughput.`,
-          impact: `Shoppers are experiencing high checkout latency (>8 min). High risk of immediate basket abandonment and shopper churn.`,
-          recommendation: `Open ${closedCounter.queue_name} to redistribute queue load and reduce average wait below 2 minutes.`,
+          reason:
+            `Queue depth is growing faster than single-counter processing capacity. Rate of arrival exceeds checkout throughput.`,
+          impact:
+            `Shoppers are experiencing high checkout latency (>8 min). High risk of immediate basket abandonment and shopper churn.`,
+          recommendation:
+            `Open ${closedCounter.queue_name} to redistribute queue load and reduce average wait below 2 minutes.`,
           action: {
             id: `action-open-${closedCounter.queue_id}`,
             type: 'OPEN_COUNTER',
@@ -113,15 +125,21 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             payload: { action: 'OPEN' },
             status: 'AVAILABLE',
           },
-          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          timestamp: new Date().toLocaleTimeString([], {
+            hour: '2-digit',
+            minute: '2-digit',
+          }),
           source: overloadedQueue.camera_id || 'Checkout Zone Vision',
         });
       }
 
-      // 2. Evaluate Shelves
       const criticalShelf = shelfList.find(
-        (s) => s.fill_percentage <= 20.0 || s.is_out_of_stock || s.status_label === 'CRITICAL_OUT_OF_STOCK'
+        (s) =>
+          s.fill_percentage <= 20.0 ||
+          s.is_out_of_stock ||
+          s.status_label === 'CRITICAL_OUT_OF_STOCK'
       );
+
       if (criticalShelf) {
         results.push({
           id: `shelf-${criticalShelf.aisle_name.replace(/\s+/g, '-').toLowerCase()}`,
@@ -132,41 +150,65 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           summary: `Shelf fill level has dropped to ${criticalShelf.fill_percentage.toFixed(
             1
           )}% with only ${criticalShelf.product_count} units remaining.`,
-          reason: `High footfall and rapid SKU depletion detected by edge cameras in ${criticalShelf.aisle_name}.`,
-          impact: `High risk of out-of-stock condition resulting in unfulfilled customer demand and lost store revenue.`,
-          recommendation: `Dispatch store floor team to restock ${criticalShelf.aisle_name} immediately.`,
+          reason:
+            `High footfall and rapid SKU depletion detected by edge cameras in ${criticalShelf.aisle_name}.`,
+          impact:
+            `High risk of out-of-stock condition resulting in unfulfilled customer demand and lost store revenue.`,
+          recommendation:
+            `Dispatch store floor team to restock ${criticalShelf.aisle_name} immediately.`,
           action: {
             id: `action-restock-${criticalShelf.id}`,
             type: 'DISPATCH_RESTOCK',
             label: `DISPATCH RESTOCK TEAM`,
             entityId: criticalShelf.aisle_name,
-            endpoint: `/inventory/restock/${encodeURIComponent(criticalShelf.aisle_name)}`,
+            endpoint: `/inventory/restock/${encodeURIComponent(
+              criticalShelf.aisle_name
+            )}`,
             method: 'POST',
             status: 'AVAILABLE',
           },
-          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          timestamp: new Date().toLocaleTimeString([], {
+            hour: '2-digit',
+            minute: '2-digit',
+          }),
           source: `Aisle Vision Camera (${criticalShelf.aisle_name})`,
         });
       }
 
-      // 3. Evaluate Unacknowledged Alerts
       const unackAlerts = alertList.filter((a) => !a.is_acknowledged);
+
       for (const alert of unackAlerts) {
-        // If not already covered by queue/shelf situation
-        const isQueue = alert.alert_type === 'QUEUE_OVERFLOW' && results.some((r) => r.type === 'QUEUE_CONGESTION');
-        const isShelf = alert.alert_type === 'SHELF_EMPTY' && results.some((r) => r.type === 'STOCKOUT_RISK');
+        const isQueue =
+          alert.alert_type === 'QUEUE_OVERFLOW' &&
+          results.some((r) => r.type === 'QUEUE_CONGESTION');
+
+        const isShelf =
+          alert.alert_type === 'SHELF_EMPTY' &&
+          results.some((r) => r.type === 'STOCKOUT_RISK');
+
         if (!isQueue && !isShelf) {
-          const prio: any = alert.severity === 'CRITICAL' ? 'CRITICAL' : alert.severity === 'WARNING' ? 'HIGH' : 'MEDIUM';
+          const prio: any =
+            alert.severity === 'CRITICAL'
+              ? 'CRITICAL'
+              : alert.severity === 'WARNING'
+              ? 'HIGH'
+              : 'MEDIUM';
+
           results.push({
             id: `alert-${alert.id}`,
             priority: prio,
-            type: alert.alert_type === 'HARDWARE_WARN' ? 'HARDWARE_ALERT' : 'STOCKOUT_RISK',
+            type:
+              alert.alert_type === 'HARDWARE_WARN'
+                ? 'HARDWARE_ALERT'
+                : 'STOCKOUT_RISK',
             title: alert.title,
             entity: alert.source_id || 'Store Sensor',
             summary: alert.message,
             reason: `Edge sensor automated threshold trigger (${alert.alert_type}).`,
-            impact: `Operational alert logged in system requiring store manager acknowledgment.`,
-            recommendation: `Review the affected area and mark alert as acknowledged once inspected.`,
+            impact:
+              `Operational alert logged in system requiring store manager acknowledgment.`,
+            recommendation:
+              `Review the affected area and mark alert as acknowledged once inspected.`,
             action: {
               id: `action-ack-${alert.id}`,
               type: 'ACKNOWLEDGE_ALERT',
@@ -176,13 +218,15 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
               method: 'POST',
               status: 'AVAILABLE',
             },
-            timestamp: new Date(alert.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            timestamp: new Date(alert.timestamp).toLocaleTimeString([], {
+              hour: '2-digit',
+              minute: '2-digit',
+            }),
             source: alert.source_id || 'System Engine',
           });
         }
       }
 
-      // 4. Default Calm Normal State if everything is healthy
       if (results.length === 0) {
         results.push({
           id: 'normal-operations',
@@ -190,11 +234,18 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           type: 'NORMAL_OPERATIONS',
           title: 'Store Operating Normally',
           entity: 'All Zones Nominal',
-          summary: 'No immediate action required. All checkout counters, aisle inventories, and Qualcomm edge sensors are operating within optimal parameters.',
-          reason: 'Shopper arrival rate is balanced across checkout counters, and shelf fill levels exceed safety stock thresholds.',
-          impact: 'Average customer wait time is optimal. Zero critical operational bottlenecks detected.',
-          recommendation: 'Maintain standard floor coverage and routine shelf inspections.',
-          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          summary:
+            'No immediate action required. All checkout counters, aisle inventories, and Qualcomm edge sensors are operating within optimal parameters.',
+          reason:
+            'Shopper arrival rate is balanced across checkout counters, and shelf fill levels exceed safety stock thresholds.',
+          impact:
+            'Average customer wait time is optimal. Zero critical operational bottlenecks detected.',
+          recommendation:
+            'Maintain standard floor coverage and routine shelf inspections.',
+          timestamp: new Date().toLocaleTimeString([], {
+            hour: '2-digit',
+            minute: '2-digit',
+          }),
           source: 'Qualcomm Edge Retail Intelligence Engine',
         });
       }
@@ -207,10 +258,10 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [situations, setSituations] = useState<Situation[]>([]);
   const primarySituation = situations[0] || null;
 
-  // Master fetch function
   const refreshAll = useCallback(async () => {
     try {
       setError(null);
+
       const [
         kpiData,
         queueData,
@@ -231,109 +282,57 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         fetchSimulatorStatus(),
       ]);
 
-      const q = queueData.status === 'fulfilled' ? queueData.value : [];
-      const s = shelfData.status === 'fulfilled' ? shelfData.value : [];
-      const a = alertData.status === 'fulfilled' ? alertData.value : [];
+      const q =
+        queueData.status === 'fulfilled' ? queueData.value : [];
+      const s =
+        shelfData.status === 'fulfilled' ? shelfData.value : [];
+      const a =
+        alertData.status === 'fulfilled' ? alertData.value : [];
 
-      if (kpiData.status === 'fulfilled') setOverview(kpiData.value);
-      if (queueData.status === 'fulfilled') setQueues(q);
-      if (shelfData.status === 'fulfilled') setShelves(s);
-      if (alertData.status === 'fulfilled') setAlerts(a);
-      if (hwData.status === 'fulfilled') setHardware(hwData.value);
-      if (heatmapData.status === 'fulfilled') setHeatmap(heatmapData.value);
-      if (trendsData.status === 'fulfilled') setTrends(trendsData.value);
-      if (simData.status === 'fulfilled') setSimulator(simData.value);
+      if (kpiData.status === 'fulfilled') {
+        setOverview(kpiData.value);
+      }
+
+      if (queueData.status === 'fulfilled') {
+        setQueues(q);
+      }
+
+      if (shelfData.status === 'fulfilled') {
+        setShelves(s);
+      }
+
+      if (alertData.status === 'fulfilled') {
+        setAlerts(a);
+      }
+
+      if (hwData.status === 'fulfilled') {
+        setHardware(hwData.value);
+      }
+
+      if (heatmapData.status === 'fulfilled') {
+        setHeatmap(heatmapData.value);
+      }
+
+      if (trendsData.status === 'fulfilled') {
+        setTrends(trendsData.value);
+      }
+
+      if (simData.status === 'fulfilled') {
+        setSimulator(simData.value);
+      }
 
       const derived = deriveSituations(q, s, a);
       setSituations(derived);
       setLastUpdated(new Date());
     } catch (err: any) {
-      setError(err.message || 'Failed to sync with Retail Intelligence backend.');
+      setError(
+        err.message ||
+          'Failed to sync with Retail Intelligence backend.'
+      );
     } finally {
       setIsLoading(false);
     }
   }, [deriveSituations]);
-
-  // Initial Load & Heartbeat Polling
-  useEffect(() => {
-    refreshAll();
-
-    // Establish WebSocket Connection
-    liveWs.connect((connected) => {
-      setIsWsConnected(connected);
-    });
-
-    const unsubTelemetry = liveWs.subscribe('TELEMETRY_UPDATE', (data) => {
-      // Background refresh on live edge updates
-      refreshAll();
-    });
-
-    const unsubAlert = liveWs.subscribe('NEW_ALERT', (data) => {
-      showToast(`🚨 New ${data.severity || 'Alert'}: ${data.title}`, data.severity === 'CRITICAL' ? 'error' : 'info');
-      refreshAll();
-    });
-
-    const unsubQueue = liveWs.subscribe('QUEUE_ACTION', (data) => {
-      refreshAll();
-    });
-
-    // Controlled 4-second Polling fallback
-    const interval = setInterval(() => {
-      refreshAll();
-    }, 4000);
-
-    return () => {
-      clearInterval(interval);
-      unsubTelemetry();
-      unsubAlert();
-      unsubQueue();
-      liveWs.disconnect();
-    };
-  }, [refreshAll, showToast]);
-
-  // Closed-loop action execution
-  const executeAction = async (action: OperationalAction): Promise<boolean> => {
-    setActiveAction({ ...action, status: 'EXECUTING' });
-    setVerificationMessage(null);
-
-    try {
-      if (action.type === 'OPEN_COUNTER' || action.type === 'CLOSE_COUNTER') {
-        const actionType = action.type === 'OPEN_COUNTER' ? 'OPEN' : 'CLOSE';
-        const res = await toggleCounterStatus(action.entityId, actionType);
-        
-        setActiveAction({ ...action, status: 'SUCCESS' });
-        setVerificationMessage(`${res.message} Queue redistribution detected and wait time decreasing.`);
-        showToast(`✅ ${res.message}`, 'success');
-      } else if (action.type === 'DISPATCH_RESTOCK') {
-        const res = await triggerRestock(action.entityId);
-        
-        setActiveAction({ ...action, status: 'SUCCESS' });
-        setVerificationMessage(`Restock team dispatched for ${action.entityId}. Shelf inventory alerts resolved.`);
-        showToast(`🛒 Restock dispatched for ${action.entityId}`, 'success');
-      } else if (action.type === 'ACKNOWLEDGE_ALERT') {
-        const res = await acknowledgeAlert(parseInt(action.entityId, 10));
-        
-        setActiveAction({ ...action, status: 'SUCCESS' });
-        setVerificationMessage(`Alert acknowledged and marked resolved.`);
-        showToast(`Alert acknowledged.`, 'success');
-      }
-
-      // Invalidate and refresh all operational state immediately
-      await refreshAll();
-
-      // Clear verification message after 10 seconds to settle into calm state
-      setTimeout(() => {
-        setVerificationMessage(null);
-        setActiveAction(null);
-      }, 10000);
-
-      return true;
-    } catch (err: any) {
-      setActiveAction({ ...action, status: 'FAILED' });
-      showToast(`Action failed: ${err.message || 'Error executing operational action.'}`, 'error');
-      return false;
-    }
-  };
 
   const updateLiveStoreTelemetry = useCallback(
     (data: {
@@ -346,96 +345,339 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       aisle2Stock?: number;
       aisle3Stock?: number;
       aisle4Stock?: number;
+      npuLoad?: number;
     }) => {
-      // 1. Update Overview
       setOverview((prev) => {
         if (!prev) return prev;
+
         return {
           ...prev,
-          active_shoppers_now: data.activeShoppers ?? prev.active_shoppers_now,
-          total_footfall_today: data.footfallIn ?? prev.total_footfall_today,
+          active_shoppers_now:
+            data.activeShoppers ?? prev.active_shoppers_now,
+          total_footfall_today:
+            data.footfallIn ?? prev.total_footfall_today,
         };
       });
 
-      // 2. Update Queues
       setQueues((prev) => {
         return prev.map((q) => {
-          if (q.queue_id === 'queue-counter-1' && data.q1Count !== undefined) {
+          if (
+            q.queue_id === 'queue-counter-1' &&
+            data.q1Count !== undefined
+          ) {
+            const status =
+              data.q1Count >= 6
+                ? 'OVERLOADED'
+                : data.q1Count >= 4
+                ? 'BUSY'
+                : 'OPEN';
+
             return {
               ...q,
               shopper_count: data.q1Count,
               estimated_wait_sec: data.q1Count * 110,
-              cashier_status: data.q1Count >= 5 ? 'OVERLOADED' : 'OPEN',
+              cashier_status: status,
             };
           }
-          if (q.queue_id === 'queue-counter-2' && data.q2Count !== undefined) {
+
+          if (
+            q.queue_id === 'queue-counter-2' &&
+            data.q2Count !== undefined
+          ) {
+            const status =
+              data.q2Count >= 6
+                ? 'OVERLOADED'
+                : data.q2Count >= 4
+                ? 'BUSY'
+                : 'OPEN';
+
             return {
               ...q,
               shopper_count: data.q2Count,
               estimated_wait_sec: data.q2Count * 110,
+              cashier_status: status,
             };
           }
-          if (q.queue_id === 'queue-counter-3' && data.q3Count !== undefined) {
+
+          if (
+            q.queue_id === 'queue-counter-3' &&
+            data.q3Count !== undefined
+          ) {
+            const status =
+              data.q3Count > 0 ? 'OPEN' : 'CLOSED';
+
             return {
               ...q,
               shopper_count: data.q3Count,
               estimated_wait_sec: data.q3Count * 110,
+              cashier_status: status,
             };
           }
+
           return q;
         });
       });
 
-      // 3. Update Shelves
       setShelves((prev) => {
         return prev.map((s) => {
-          if (s.aisle_name.includes('1') && data.aisle1Stock !== undefined) {
+          if (
+            s.aisle_name.includes('1') &&
+            data.aisle1Stock !== undefined
+          ) {
             return {
               ...s,
               fill_percentage: data.aisle1Stock,
-              product_count: Math.round((data.aisle1Stock / 100) * 50),
+              product_count: Math.round(
+                (data.aisle1Stock / 100) * 50
+              ),
               is_out_of_stock: data.aisle1Stock <= 15,
             };
           }
-          if (s.aisle_name.includes('2') && data.aisle2Stock !== undefined) {
+
+          if (
+            s.aisle_name.includes('2') &&
+            data.aisle2Stock !== undefined
+          ) {
             return {
               ...s,
               fill_percentage: data.aisle2Stock,
-              product_count: Math.round((data.aisle2Stock / 100) * 40),
+              product_count: Math.round(
+                (data.aisle2Stock / 100) * 40
+              ),
               is_out_of_stock: data.aisle2Stock <= 15,
             };
           }
-          if (s.aisle_name.includes('3') && data.aisle3Stock !== undefined) {
+
+          if (
+            s.aisle_name.includes('3') &&
+            data.aisle3Stock !== undefined
+          ) {
             return {
               ...s,
               fill_percentage: data.aisle3Stock,
-              product_count: Math.max(1, Math.round((data.aisle3Stock / 100) * 20)),
+              product_count: Math.max(
+                1,
+                Math.round((data.aisle3Stock / 100) * 20)
+              ),
               is_out_of_stock: data.aisle3Stock <= 15,
             };
           }
-          if (s.aisle_name.includes('4') && data.aisle4Stock !== undefined) {
+
+          if (
+            s.aisle_name.includes('4') &&
+            data.aisle4Stock !== undefined
+          ) {
             return {
               ...s,
               fill_percentage: data.aisle4Stock,
-              product_count: Math.round((data.aisle4Stock / 100) * 35),
+              product_count: Math.round(
+                (data.aisle4Stock / 100) * 35
+              ),
               is_out_of_stock: data.aisle4Stock <= 15,
             };
           }
+
           return s;
         });
       });
+
+      if (data.npuLoad !== undefined) {
+        setHardware((prev) => {
+          if (!prev) return prev;
+
+          return {
+            ...prev,
+            npu_load_pct: data.npuLoad,
+          };
+        });
+      }
 
       setLastUpdated(new Date());
     },
     []
   );
 
-  const fetchCustomTrends = async (windowMinutes: number) => {
+  useEffect(() => {
+    refreshAll();
+
+    liveWs.connect((connected) => {
+      setIsWsConnected(connected);
+    });
+
+    const unsubTelemetry = liveWs.subscribe(
+      'TELEMETRY_UPDATE',
+      (data) => {
+        updateLiveStoreTelemetry({
+          activeShoppers: data.active_shoppers,
+          q1Count: data.queue_1_count,
+          q2Count: data.queue_2_count,
+          q3Count: data.queue_3_count,
+          aisle3Stock: data.aisle_3_stock_pct,
+          npuLoad: data.npu_load_pct,
+        });
+      }
+    );
+
+    const unsubAlert = liveWs.subscribe(
+      'NEW_ALERT',
+      (data) => {
+        showToast(
+          `🚨 New ${data.severity || 'Alert'}: ${data.title}`,
+          data.severity === 'CRITICAL'
+            ? 'error'
+            : 'info'
+        );
+
+        refreshAll();
+      }
+    );
+
+    const unsubQueue = liveWs.subscribe(
+      'QUEUE_ACTION',
+      () => {
+        refreshAll();
+      }
+    );
+
+    const interval = setInterval(() => {
+      refreshAll();
+    }, 4000);
+
+    return () => {
+      clearInterval(interval);
+      unsubTelemetry();
+      unsubAlert();
+      unsubQueue();
+      liveWs.disconnect();
+    };
+  }, [
+    refreshAll,
+    showToast,
+    updateLiveStoreTelemetry,
+  ]);
+
+  const executeAction = async (
+    action: OperationalAction
+  ): Promise<boolean> => {
+    setActiveAction({
+      ...action,
+      status: 'EXECUTING',
+    });
+
+    setVerificationMessage(null);
+
     try {
-      const data = await fetchTrends(windowMinutes);
+      if (
+        action.type === 'OPEN_COUNTER' ||
+        action.type === 'CLOSE_COUNTER'
+      ) {
+        const actionType =
+          action.type === 'OPEN_COUNTER'
+            ? 'OPEN'
+            : 'CLOSE';
+
+        const res = await toggleCounterStatus(
+          action.entityId,
+          actionType
+        );
+
+        setActiveAction({
+          ...action,
+          status: 'SUCCESS',
+        });
+
+        setVerificationMessage(
+          `${res.message} Queue redistribution detected and wait time decreasing.`
+        );
+
+        showToast(
+          `✅ ${res.message}`,
+          'success'
+        );
+      } else if (
+        action.type === 'DISPATCH_RESTOCK'
+      ) {
+        const res = await triggerRestock(
+          action.entityId
+        );
+
+        setActiveAction({
+          ...action,
+          status: 'SUCCESS',
+        });
+
+        setVerificationMessage(
+          `Restock team dispatched for ${action.entityId}. Shelf inventory alerts resolved.`
+        );
+
+        showToast(
+          `🛒 Restock dispatched for ${action.entityId}`,
+          'success'
+        );
+      } else if (
+        action.type === 'ACKNOWLEDGE_ALERT'
+      ) {
+        const res = await acknowledgeAlert(
+          parseInt(action.entityId, 10)
+        );
+
+        setActiveAction({
+          ...action,
+          status: 'SUCCESS',
+        });
+
+        setVerificationMessage(
+          `Alert acknowledged and marked resolved.`
+        );
+
+        showToast(
+          `Alert acknowledged.`,
+          'success'
+        );
+      }
+
+      await refreshAll();
+
+      setTimeout(() => {
+        setVerificationMessage(null);
+        setActiveAction(null);
+      }, 10000);
+
+      return true;
+    } catch (err: any) {
+      setActiveAction({
+        ...action,
+        status: 'FAILED',
+      });
+
+      showToast(
+        `Action failed: ${
+          err.message ||
+          'Error executing operational action.'
+        }`,
+        'error'
+      );
+
+      return false;
+    }
+  };
+
+  const fetchCustomTrends = async (
+    windowMinutes: number
+  ) => {
+    try {
+      const data = await fetchTrends(
+        windowMinutes
+      );
+
       setTrends(data);
     } catch (err: any) {
-      showToast(`Error fetching trends: ${err.message || 'Failed'}`, 'error');
+      showToast(
+        `Error fetching trends: ${
+          err.message || 'Failed'
+        }`,
+        'error'
+      );
     }
   };
 
@@ -475,6 +717,12 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
 export const useStore = () => {
   const ctx = useContext(StoreContext);
-  if (!ctx) throw new Error('useStore must be used within StoreProvider');
+
+  if (!ctx) {
+    throw new Error(
+      'useStore must be used within StoreProvider'
+    );
+  }
+
   return ctx;
 };
