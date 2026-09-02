@@ -19,34 +19,45 @@ class EdgeSimulator:
         self._task = None
         self.frames_emitted = 0
 
-        # Stateful store conditions
         self.aisle_3_stock = 60.0
         self.is_aisle_3_restocked = False
 
         self.queue_1_count = 6
         self.queue_2_count = 2
-        self.queue_3_count = 2
+        self.queue_3_count = 0
 
+        self.counter_1_open = True
+        self.counter_2_open = True
         self.counter_3_open = False
+
         self.active_shoppers = 32
+        self._startup_initialized = False
 
     def start(self):
         if not self.is_running:
             self.is_running = True
+            self._startup_initialized = False
             self._task = asyncio.create_task(self._simulation_loop())
             logger.info("Edge Camera Simulator started in Realistic Mode.")
 
     def stop(self):
         if self.is_running:
             self.is_running = False
+
             if self._task:
                 self._task.cancel()
+
+            self._task = None
             logger.info("Edge Camera Simulator stopped.")
 
     async def _simulation_loop(self):
         while self.is_running:
             try:
                 async with AsyncSessionLocal() as db:
+                    if not self._startup_initialized:
+                        await self._initialize_startup_state(db)
+                        self._startup_initialized = True
+
                     await self._emit_simulated_frame(db)
 
                 self.frames_emitted += 1
@@ -59,28 +70,152 @@ class EdgeSimulator:
                 logger.error(f"Error in simulation loop: {e}")
                 await asyncio.sleep(3.0)
 
+    async def _initialize_startup_state(self, db: AsyncSession):
+        self.counter_1_open = True
+        self.counter_2_open = True
+        self.counter_3_open = False
+
+        startup_states = [
+            {
+                "queue_id": "queue-counter-1",
+                "queue_name": "Cashier Counter 1",
+                "camera_id": "cam-02-checkout-1",
+                "open": True,
+                "count": max(4, self.queue_1_count),
+            },
+            {
+                "queue_id": "queue-counter-2",
+                "queue_name": "Cashier Counter 2",
+                "camera_id": "cam-03-checkout-2",
+                "open": True,
+                "count": max(1, self.queue_2_count),
+            },
+            {
+                "queue_id": "queue-counter-3",
+                "queue_name": "Cashier Counter 3",
+                "camera_id": "cam-04-checkout-3",
+                "open": False,
+                "count": 0,
+            },
+        ]
+
+        for state in startup_states:
+            metric = QueueMetric(
+                camera_id=state["camera_id"],
+                queue_id=state["queue_id"],
+                queue_name=state["queue_name"],
+                shopper_count=state["count"],
+                estimated_wait_sec=state["count"] * 110.0,
+                cashier_status="OPEN" if state["open"] else "CLOSED",
+                is_bottleneck=False,
+            )
+
+            db.add(metric)
+
+        self.queue_3_count = 0
+
+        await db.commit()
+
+        await ws_manager.broadcast({
+            "event": "QUEUE_ACTION",
+            "data": {
+                "queue_id": "queue-counter-3",
+                "action": "CLOSE",
+                "status": "CLOSED",
+                "message": "Cashier Counter 3 is closed at simulator startup."
+            }
+        })
+
+    async def _get_counter_states(self, db: AsyncSession):
+        counter_ids = [
+            "queue-counter-1",
+            "queue-counter-2",
+            "queue-counter-3",
+        ]
+
+        states = {}
+
+        for queue_id in counter_ids:
+            stmt = (
+                select(QueueMetric)
+                .where(QueueMetric.queue_id == queue_id)
+                .order_by(QueueMetric.timestamp.desc())
+                .limit(1)
+            )
+
+            result = await db.execute(stmt)
+            record = result.scalars().first()
+
+            if record:
+                states[queue_id] = record.cashier_status != "CLOSED"
+
+        if "queue-counter-1" not in states:
+            states["queue-counter-1"] = True
+
+        if "queue-counter-2" not in states:
+            states["queue-counter-2"] = True
+
+        if "queue-counter-3" not in states:
+            states["queue-counter-3"] = False
+
+        return states
+
+    def _queue_change(self, max_increase: int):
+        if max_increase == 2:
+            return random.choices(
+                [-2, -1, 0, 1, 2],
+                weights=[10, 20, 30, 25, 15],
+                k=1
+            )[0]
+
+        if max_increase == 3:
+            return random.choices(
+                [-3, -2, -1, 0, 1, 2, 3],
+                weights=[5, 10, 20, 25, 20, 15, 5],
+                k=1
+            )[0]
+
+        return random.choices(
+            [-4, -3, -2, -1, 0, 1, 2, 3, 4],
+            weights=[4, 6, 10, 15, 20, 15, 12, 10, 8],
+            k=1
+        )[0]
+
+    def _status_for_queue(self, count: int, is_open: bool):
+        if not is_open:
+            return "CLOSED"
+
+        if count >= 6:
+            return "OVERLOADED"
+
+        if count >= 4:
+            return "BUSY"
+
+        return "OPEN"
+
     async def _emit_simulated_frame(self, db: AsyncSession):
 
-        # ---------------------------------------------------------
-        # CHECK COUNTER 3 STATUS
-        # ---------------------------------------------------------
-        q3_stmt = (
-            select(QueueMetric)
-            .where(QueueMetric.queue_id == "queue-counter-3")
-            .order_by(QueueMetric.timestamp.desc())
-            .limit(1)
-        )
+        counter_states = await self._get_counter_states(db)
 
-        q3_res = await db.execute(q3_stmt)
-        q3_rec = q3_res.scalars().first()
+        self.counter_1_open = counter_states["queue-counter-1"]
+        self.counter_2_open = counter_states["queue-counter-2"]
+        self.counter_3_open = counter_states["queue-counter-3"]
 
-        self.counter_3_open = bool(
-            q3_rec and q3_rec.cashier_status == "OPEN"
-        )
+        open_counter_count = sum([
+            self.counter_1_open,
+            self.counter_2_open,
+            self.counter_3_open,
+        ])
 
-        # ---------------------------------------------------------
-        # CHECK SHELF ALERTS
-        # ---------------------------------------------------------
+        if open_counter_count >= 3:
+            max_increase = 2
+        elif open_counter_count == 2:
+            max_increase = 3
+        elif open_counter_count == 1:
+            max_increase = 4
+        else:
+            max_increase = 0
+
         alert_stmt = (
             select(AlertLog)
             .where(
@@ -92,9 +227,6 @@ class EdgeSimulator:
         alert_res = await db.execute(alert_stmt)
         has_pending_alert = alert_res.scalars().first() is not None
 
-        # ---------------------------------------------------------
-        # 1. ENTRANCE SHOPPER TELEMETRY
-        # ---------------------------------------------------------
         self.active_shoppers = max(
             20,
             min(
@@ -124,93 +256,57 @@ class EdgeSimulator:
 
         db.add(telemetry)
 
-        # ---------------------------------------------------------
-        # 2. CHECKOUT QUEUE DYNAMICS
-        # ---------------------------------------------------------
+        if self.counter_1_open:
+            if max_increase > 0:
+                self.queue_1_count = max(
+                    0,
+                    min(
+                        10,
+                        self.queue_1_count + self._queue_change(max_increase)
+                    )
+                )
+        else:
+            self.queue_1_count = 0
 
-        # Most changes are small.
-        # Occasionally the queue changes by 2 or 3 shoppers.
-        counter_change = random.choices(
-            [-3, -2, -1, 0, 1, 2, 3],
-            weights=[5, 10, 25, 20, 25, 10, 5]
-        )[0]
-
-        counter_2_change = random.choices(
-            [-3, -2, -1, 0, 1, 2, 3],
-            weights=[5, 10, 25, 20, 25, 10, 5]
-        )[0]
-
-        counter_3_change = random.choices(
-            [-3, -2, -1, 0, 1, 2, 3],
-            weights=[5, 10, 25, 20, 25, 10, 5]
-        )[0]
+        if self.counter_2_open:
+            if max_increase > 0:
+                self.queue_2_count = max(
+                    0,
+                    min(
+                        10,
+                        self.queue_2_count + self._queue_change(max_increase)
+                    )
+                )
+        else:
+            self.queue_2_count = 0
 
         if self.counter_3_open:
-
-            self.queue_1_count = max(
-                1,
-                min(
-                    7,
-                    self.queue_1_count + counter_change
+            if max_increase > 0:
+                self.queue_3_count = max(
+                    0,
+                    min(
+                        10,
+                        self.queue_3_count + self._queue_change(max_increase)
+                    )
                 )
-            )
-
-            self.queue_2_count = max(
-                1,
-                min(
-                    6,
-                    self.queue_2_count + counter_2_change
-                )
-            )
-
-            self.queue_3_count = max(
-                1,
-                min(
-                    6,
-                    self.queue_3_count + counter_3_change
-                )
-            )
-
-            q3_count = self.queue_3_count
-
-            q1_status = (
-                "OVERLOADED"
-                if self.queue_1_count >= 6
-                else "BUSY"
-                if self.queue_1_count >= 4
-                else "OPEN"
-            )
-
         else:
-
-            self.queue_1_count = max(
-                4,
-                min(
-                    8,
-                    self.queue_1_count + counter_change
-                )
-            )
-
-            self.queue_2_count = max(
-                1,
-                min(
-                    6,
-                    self.queue_2_count + counter_2_change
-                )
-            )
-
             self.queue_3_count = 0
-            q3_count = 0
 
-            q1_status = (
-                "OVERLOADED"
-                if self.queue_1_count >= 6
-                else "BUSY"
-            )
+        q1_status = self._status_for_queue(
+            self.queue_1_count,
+            self.counter_1_open
+        )
 
-        # ---------------------------------------------------------
-        # QUEUE 1 DATABASE METRIC
-        # ---------------------------------------------------------
+        q2_status = self._status_for_queue(
+            self.queue_2_count,
+            self.counter_2_open
+        )
+
+        q3_status = self._status_for_queue(
+            self.queue_3_count,
+            self.counter_3_open
+        )
+
         q1_payload = QueueMetricPayload(
             camera_id="cam-02-checkout-1",
             queue_id="queue-counter-1",
@@ -231,21 +327,11 @@ class EdgeSimulator:
 
         db.add(q1_metric)
 
-        await AlertEngine.evaluate_queue_telemetry(
-            db,
-            q1_payload
-        )
-
-        # ---------------------------------------------------------
-        # QUEUE 2 DATABASE METRIC
-        # ---------------------------------------------------------
-        q2_status = (
-            "OVERLOADED"
-            if self.queue_2_count >= 6
-            else "BUSY"
-            if self.queue_2_count >= 4
-            else "OPEN"
-        )
+        if self.counter_1_open:
+            await AlertEngine.evaluate_queue_telemetry(
+                db,
+                q1_payload
+            )
 
         q2_payload = QueueMetricPayload(
             camera_id="cam-03-checkout-2",
@@ -267,22 +353,18 @@ class EdgeSimulator:
 
         db.add(q2_metric)
 
-        await AlertEngine.evaluate_queue_telemetry(
-            db,
-            q2_payload
-        )
-
-        # ---------------------------------------------------------
-        # QUEUE 3 DATABASE METRIC
-        # ---------------------------------------------------------
-        q3_status = "OPEN" if self.counter_3_open else "CLOSED"
+        if self.counter_2_open:
+            await AlertEngine.evaluate_queue_telemetry(
+                db,
+                q2_payload
+            )
 
         q3_payload = QueueMetricPayload(
             camera_id="cam-04-checkout-3",
             queue_id="queue-counter-3",
             queue_name="Cashier Counter 3",
-            shopper_count=q3_count,
-            estimated_wait_sec=q3_count * 110.0,
+            shopper_count=self.queue_3_count,
+            estimated_wait_sec=self.queue_3_count * 110.0,
             cashier_status=q3_status
         )
 
@@ -297,13 +379,11 @@ class EdgeSimulator:
 
         db.add(q3_metric)
 
-        # ---------------------------------------------------------
-        # 3. SHELF INVENTORY
-        # ---------------------------------------------------------
-
-        # Shelf can gain or lose up to 20 percentage points.
-        # Smaller changes are more common, large changes happen
-        # occasionally to make the demo feel more dynamic.
+        if self.counter_3_open:
+            await AlertEngine.evaluate_queue_telemetry(
+                db,
+                q3_payload
+            )
 
         shelf_change = random.choices(
             [
@@ -354,9 +434,6 @@ class EdgeSimulator:
             shelf_payload
         )
 
-        # ---------------------------------------------------------
-        # 4. QUALCOMM HARDWARE TELEMETRY
-        # ---------------------------------------------------------
         hw_payload = EdgeHardwareTelemetryPayload(
             device_id="Qualcomm-Snapdragon-RB5-01",
             fps=round(
@@ -394,17 +471,17 @@ class EdgeSimulator:
 
         await db.commit()
 
-        # ---------------------------------------------------------
-        # 5. BROADCAST LIVE UPDATE
-        # ---------------------------------------------------------
         await ws_manager.broadcast({
             "event": "TELEMETRY_UPDATE",
             "data": {
                 "active_shoppers": self.active_shoppers,
                 "queue_1_count": self.queue_1_count,
                 "queue_2_count": self.queue_2_count,
-                "queue_3_count": q3_count,
+                "queue_3_count": self.queue_3_count,
+                "counter_1_open": self.counter_1_open,
+                "counter_2_open": self.counter_2_open,
                 "counter_3_open": self.counter_3_open,
+                "open_counter_count": open_counter_count,
                 "aisle_3_stock_pct": shelf_payload.fill_percentage,
                 "npu_load_pct": hw_payload.npu_load_pct,
                 "timestamp": datetime.now(timezone.utc).isoformat()
@@ -413,4 +490,3 @@ class EdgeSimulator:
 
 
 edge_simulator = EdgeSimulator()
-
