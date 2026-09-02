@@ -87,19 +87,19 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
       const overloadedQueue = queueList.find(
         (q) =>
-          q.cashier_status === 'OVERLOADED' ||
-          q.shopper_count >= 5 ||
-          q.estimated_wait_sec > 480
+          q.queue_id !== 'queue-counter-3' &&
+          (q.cashier_status === 'OVERLOADED' ||
+            q.shopper_count >= 5 ||
+            q.estimated_wait_sec > 480)
       );
 
-      if (overloadedQueue) {
-        const closedCounter = queueList.find(
-          (q) => q.cashier_status === 'CLOSED'
-        ) || {
-          queue_id: 'queue-counter-3',
-          queue_name: 'Cashier Counter 3',
-        };
+      const closedCounter = queueList.find(
+        (q) =>
+          q.queue_id === 'queue-counter-3' &&
+          q.cashier_status === 'CLOSED'
+      );
 
+      if (overloadedQueue && closedCounter) {
         results.push({
           id: `queue-${overloadedQueue.queue_id}`,
           priority: 'CRITICAL',
